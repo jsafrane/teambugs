@@ -78,7 +78,7 @@ func main() {
 
 	apiKey := os.Getenv("BUGZILLA_API_KEY")
 	if len(apiKey) == 0 {
-		fmt.Errorf("BUGZILLA_API_KEY environment variable must be set (https://bugzilla.redhat.com/userprefs.cgi?tab=apikey)")
+		log.Errorf("BUGZILLA_API_KEY environment variable must be set (https://bugzilla.redhat.com/userprefs.cgi?tab=apikey)")
 		os.Exit(1)
 	}
 
@@ -92,12 +92,12 @@ func main() {
 		Status:        []string{"NEW", "ASSIGNED", "POST", "ON_DEV"},
 		TargetRelease: []string{"---", currentRelease, nextRelease},
 		// When IncludeFields is set, Search returns *only* those fields - so add the default ones to get something usable.
-		IncludeFields: append(defaultFields, "flags"),
+		IncludeFields: append(defaultFields, "flags", "external_bugs"),
 	}
 
 	bugs, err := client.Search(query)
 	if err != nil {
-		fmt.Errorf("Failed to list bugs: %s", err)
+		log.Errorf("Failed to list bugs: %s", err)
 		os.Exit(1)
 	}
 
@@ -118,6 +118,7 @@ func main() {
 	}
 
 	sort.Strings(assignees)
+	var total, totalIgnored int
 
 	for _, assignee := range assignees {
 		bugIDs := []string{}
@@ -127,7 +128,9 @@ func main() {
 		for _, bugState := range bugs {
 			if bugState.ignored {
 				ignored++
+				totalIgnored++
 			}
+			total++
 			bugIDs = append(bugIDs, strconv.Itoa(bugState.bug.ID))
 		}
 		fmt.Printf("%s: %d/%d: https://bugzilla.redhat.com/buglist.cgi?f1=bug_id&list_id=11351541&o1=anyexact&v1=%s\n", assignee, len(bugs)-ignored, len(bugs), strings.Join(bugIDs, "%2C"))
@@ -140,6 +143,7 @@ func main() {
 		}
 		fmt.Printf("\n")
 	}
+	fmt.Printf("Total: %d/%d\n", total-totalIgnored, total)
 }
 
 func ignoreBug(bug *bugzilla.Bug) (bool, string) {
